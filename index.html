@@ -1758,6 +1758,44 @@
             <div id="labs" class="tab-content">
                 <h2 style="color: #667eea; margin-bottom: 20px;">Lab Results</h2>
 
+                <div style="background: #f8f9fa; padding: 25px; border-radius: 15px; margin-bottom: 30px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">📅 Upcoming Appointments</h3>
+                    <p style="color: #6c757d; font-size: 0.9em; margin-bottom: 15px;">Track lab draws and telehealth visits for TRT.</p>
+                    <div id="appointments-container" style="margin-bottom: 20px;">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Type</label>
+                            <select id="appt-type">
+                                <option value="lab">🩸 Lab Draw</option>
+                                <option value="telehealth">💻 Telehealth</option>
+                                <option value="other">📌 Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Date</label>
+                            <input type="date" id="appt-date">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Time (optional)</label>
+                            <input type="time" id="appt-time">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Provider (optional)</label>
+                            <input type="text" id="appt-provider" placeholder="e.g., Quest, Dr. Smith">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label>Notes (optional)</label>
+                        <input type="text" id="appt-notes" placeholder="e.g., fasting required, bring insurance card">
+                    </div>
+                    <button onclick="saveAppointment()" class="btn" style="background: #667eea; margin-top: 10px;">+ Add Appointment</button>
+                    <div id="appt-edit-actions" style="display: none; margin-top: 10px;">
+                        <button onclick="cancelAppointmentEdit()" class="btn" style="background: #6c757d;">Cancel Edit</button>
+                    </div>
+                </div>
+
                 <div style="margin-bottom: 30px;">
                     <h3 style="color: #667eea; margin-bottom: 15px;">Lab Trends</h3>
                     <div class="form-group" style="max-width: 300px;">
@@ -3010,6 +3048,7 @@
             deletedDefaultIds: [],
             dailyLogs: {},
             labResults: [],
+            appointments: [],
             checkinReminder: {
                 enabled: true,
                 time: '08:00'
@@ -5691,8 +5730,132 @@
         }
 
         function renderLabsTab() {
+            renderAppointments();
             renderLabsHistory();
             updateLabChart();
+        }
+
+        // ============ APPOINTMENTS (Labs & Telehealth) ============
+        let editingApptIndex = null;
+        const apptTypeMeta = {
+            lab: { emoji: '🩸', label: 'Lab Draw' },
+            telehealth: { emoji: '💻', label: 'Telehealth' },
+            other: { emoji: '📌', label: 'Other' }
+        };
+
+        function renderAppointments() {
+            const container = document.getElementById('appointments-container');
+            if (!container) return;
+            const list = appData.appointments || [];
+
+            if (list.length === 0) {
+                container.innerHTML = '<p style="color: #6c757d;">No appointments scheduled yet.</p>';
+                return;
+            }
+
+            const todayKey = formatDateKey(new Date());
+            const sorted = list
+                .map((a, originalIndex) => ({ ...a, originalIndex }))
+                .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+
+            const upcoming = sorted.filter(a => !a.done && a.date >= todayKey);
+            const past = sorted.filter(a => a.done || a.date < todayKey);
+
+            function apptRow(a) {
+                const meta = apptTypeMeta[a.type] || apptTypeMeta.other;
+                const dateLabel = formatDate(parseDate(a.date)) + (a.time ? ' @ ' + a.time : '');
+                return `
+                    <div class="lab-card" style="${a.done ? 'opacity: 0.6;' : ''}">
+                        <div class="lab-header">
+                            <span class="lab-date">${meta.emoji} ${meta.label} — ${dateLabel}</span>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="toggleAppointmentDone(${a.originalIndex})" style="background: ${a.done ? '#6c757d' : '#28a745'}; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8em;">${a.done ? 'Undo' : 'Done'}</button>
+                                <button onclick="editAppointment(${a.originalIndex})" style="background: #667eea; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8em;">Edit</button>
+                                <button onclick="deleteAppointment(${a.originalIndex})" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8em;">Delete</button>
+                            </div>
+                        </div>
+                        ${a.provider ? `<p style="margin-top: 8px; color: #6c757d;">${a.provider}</p>` : ''}
+                        ${a.notes ? `<p style="margin-top: 4px; color: #6c757d; font-style: italic;">${a.notes}</p>` : ''}
+                    </div>
+                `;
+            }
+
+            let html = upcoming.map(apptRow).join('');
+            if (past.length > 0) {
+                html += `<details style="margin-top: 10px;"><summary style="cursor: pointer; color: #6c757d;">Past / completed (${past.length})</summary>${past.map(apptRow).join('')}</details>`;
+            }
+            container.innerHTML = html || '<p style="color: #6c757d;">No upcoming appointments.</p>';
+        }
+
+        function saveAppointment() {
+            const entry = {
+                type: document.getElementById('appt-type').value,
+                date: document.getElementById('appt-date').value,
+                time: document.getElementById('appt-time').value || null,
+                provider: document.getElementById('appt-provider').value.trim(),
+                notes: document.getElementById('appt-notes').value.trim(),
+                done: false
+            };
+
+            if (!entry.date) {
+                alert('Please select a date.');
+                return;
+            }
+
+            if (!appData.appointments) appData.appointments = [];
+
+            if (editingApptIndex !== null) {
+                entry.done = appData.appointments[editingApptIndex].done;
+                appData.appointments[editingApptIndex] = entry;
+                editingApptIndex = null;
+                document.getElementById('appt-edit-actions').style.display = 'none';
+            } else {
+                appData.appointments.push(entry);
+            }
+
+            document.getElementById('appt-type').value = 'lab';
+            document.getElementById('appt-date').value = '';
+            document.getElementById('appt-time').value = '';
+            document.getElementById('appt-provider').value = '';
+            document.getElementById('appt-notes').value = '';
+
+            renderAppointments();
+            syncToFirebase();
+        }
+
+        function editAppointment(index) {
+            const a = appData.appointments[index];
+            document.getElementById('appt-type').value = a.type;
+            document.getElementById('appt-date').value = a.date;
+            document.getElementById('appt-time').value = a.time || '';
+            document.getElementById('appt-provider').value = a.provider || '';
+            document.getElementById('appt-notes').value = a.notes || '';
+            editingApptIndex = index;
+            document.getElementById('appt-edit-actions').style.display = 'block';
+        }
+
+        function cancelAppointmentEdit() {
+            editingApptIndex = null;
+            document.getElementById('appt-type').value = 'lab';
+            document.getElementById('appt-date').value = '';
+            document.getElementById('appt-time').value = '';
+            document.getElementById('appt-provider').value = '';
+            document.getElementById('appt-notes').value = '';
+            document.getElementById('appt-edit-actions').style.display = 'none';
+        }
+
+        function toggleAppointmentDone(index) {
+            appData.appointments[index].done = !appData.appointments[index].done;
+            renderAppointments();
+            syncToFirebase();
+        }
+
+        function deleteAppointment(index) {
+            if (confirm('Delete this appointment?')) {
+                appData.appointments.splice(index, 1);
+                renderAppointments();
+                syncToFirebase();
+            }
         }
 
         function renderLabsHistory() {
@@ -7076,6 +7239,7 @@
                             return;
                         }
                         appData = remoteData;
+                        if (!appData.appointments) appData.appointments = [];
                         localStorage.setItem('wellnessTracker_v1', JSON.stringify(appData));
                         renderCalendar();
                         renderTodayMeds();
@@ -7120,6 +7284,7 @@
                         return;
                     }
                     appData = remoteData;
+                    if (!appData.appointments) appData.appointments = [];
                     localStorage.setItem('wellnessTracker_v1', JSON.stringify(appData));
                     renderCalendar();
                     renderTodayMeds();
