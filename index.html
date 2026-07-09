@@ -3039,7 +3039,7 @@
         let appData = {
             medications: [
                 { id: 'trt', name: 'TRT Shot', emoji: '💉', schedule: 'weekly', days: [4], time: null, reminderEnabled: true },
-                { id: 'nad', name: 'NAD+ Shot', emoji: '💉', schedule: 'weekly', days: [1, 4], time: null, reminderEnabled: true },
+                { id: 'nad', name: 'NAD+ Shot', emoji: '💉', schedule: 'weekly', days: [1], time: null, reminderEnabled: true },
                 { id: 'wellbutrin', name: 'Wellbutrin 300mg', emoji: '💊', schedule: 'daily', days: [], time: '08:00', reminderEnabled: true },
                 { id: 'multivitamin', name: 'One A Day', emoji: '💊', schedule: 'daily', days: [], time: '08:00', reminderEnabled: true },
                 { id: 'iron', name: 'Iron', emoji: '💊', schedule: 'daily', days: [], time: '14:00', reminderEnabled: true },
@@ -3361,7 +3361,7 @@
                 // Ensure medications array has all required meds
                 const defaultMeds = [
                     { id: 'trt', name: 'TRT Shot', emoji: '💉', schedule: 'weekly', days: [4], time: null, reminderEnabled: true },
-                    { id: 'nad', name: 'NAD+ Shot', emoji: '💉', schedule: 'weekly', days: [1, 4], time: null, reminderEnabled: true },
+                    { id: 'nad', name: 'NAD+ Shot', emoji: '💉', schedule: 'weekly', days: [1], time: null, reminderEnabled: true },
                     { id: 'wellbutrin', name: 'Wellbutrin 300mg', emoji: '💊', schedule: 'daily', days: [], time: '08:00', reminderEnabled: true },
                     { id: 'multivitamin', name: 'One A Day', emoji: '💊', schedule: 'daily', days: [], time: '08:00', reminderEnabled: true },
                     { id: 'iron', name: 'Iron', emoji: '💊', schedule: 'daily', days: [], time: '14:00', reminderEnabled: true },
@@ -3378,6 +3378,12 @@
                     }
                     // Leave existing meds untouched so user edits (name, dose) persist
                 });
+                // One-time migration: NAD+ moved from twice/week (Mon+Thu) to once/week (Mon only)
+                const nadMed = appData.medications.find(m => m.id === 'nad');
+                if (nadMed && Array.isArray(nadMed.days) && nadMed.days.length === 2 &&
+                    nadMed.days.includes(1) && nadMed.days.includes(4)) {
+                    nadMed.days = [1];
+                }
             }
 
         }
@@ -5014,9 +5020,9 @@
                 document.getElementById('nad-last-site').textContent = '';
             }
 
-            // Calculate next NAD+ due based on scheduled days (Monday and Thursday)
+            // Calculate next NAD+ due based on scheduled days (Monday only)
             const nadMed = appData.medications.find(m => m.id === 'nad');
-            const nadScheduledDays = nadMed && nadMed.days && nadMed.days.length > 0 ? nadMed.days : [1, 4];
+            const nadScheduledDays = nadMed && nadMed.days && nadMed.days.length > 0 ? nadMed.days : [1];
 
             // Find next scheduled day from multiple days
             const todayDayNum = today.getDay();
@@ -5270,7 +5276,7 @@
                 const todayForNad = new Date();
                 todayForNad.setHours(0, 0, 0, 0);
                 const nadMedObj = appData.medications.find(m => m.id === 'nad');
-                const nadDays = nadMedObj && nadMedObj.days && nadMedObj.days.length > 0 ? nadMedObj.days : [1, 4];
+                const nadDays = nadMedObj && nadMedObj.days && nadMedObj.days.length > 0 ? nadMedObj.days : [1];
 
                 // Find next scheduled day from multiple days (e.g., Monday and Thursday)
                 const todayDay = todayForNad.getDay();
