@@ -1843,8 +1843,13 @@
                             📄 Upload Lab PDF
                             <input type="file" id="lab-pdf-upload" accept=".pdf" style="display: none;" onchange="handleLabPDFUpload(event)">
                         </label>
+                        <label class="btn" style="cursor: pointer; background: #28a745; color: white;">
+                            📥 Import Labs File
+                            <input type="file" id="lab-json-import" accept=".json,application/json" style="display: none;" onchange="importLabsFromFile(event)">
+                        </label>
                         <span style="color: #6c757d; font-size: 0.9em;">or paste text below</span>
                     </div>
+                    <p style="color: #6c757d; font-size: 0.8em; margin-bottom: 15px;">📥 <strong>Import Labs File</strong> adds many draws at once from a <code>.json</code> file. It only adds dates you don't already have — existing labs are never overwritten or duplicated.</p>
                     <div class="form-group" style="margin-bottom: 10px;">
                         <textarea id="lab-text-input" placeholder="Paste lab report text here, then click Parse..." style="min-height: 80px; font-size: 0.85em;"></textarea>
                     </div>
@@ -5539,6 +5544,60 @@
                 }
             };
             reader.readAsArrayBuffer(file);
+        }
+
+        // Merge lab entries from a JSON file WITHOUT overwriting existing data.
+        // Accepts either a raw array of lab entries or an object with a `labResults` array.
+        // Entries whose date already exists in the tracker are skipped (no duplicates).
+        function importLabsFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const status = document.getElementById('lab-parse-status');
+            document.getElementById('lab-parse-preview').style.display = 'none';
+            if (status) status.textContent = 'Reading labs file…';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    const incoming = Array.isArray(parsed) ? parsed
+                        : (parsed && Array.isArray(parsed.labResults) ? parsed.labResults : null);
+                    if (!incoming) {
+                        throw new Error('File must be a JSON array of labs, or an object with a "labResults" array.');
+                    }
+
+                    if (!Array.isArray(appData.labResults)) appData.labResults = [];
+                    const existingDates = new Set(appData.labResults.map(l => l && l.date).filter(Boolean));
+
+                    let added = 0, skipped = 0, invalid = 0;
+                    const addedDates = [], skippedDates = [];
+                    incoming.forEach(entry => {
+                        if (!entry || !entry.date) { invalid++; return; }
+                        if (existingDates.has(entry.date)) { skipped++; skippedDates.push(entry.date); return; }
+                        appData.labResults.push(entry);
+                        existingDates.add(entry.date); // also guard against duplicates within the file
+                        added++; addedDates.push(entry.date);
+                    });
+
+                    if (added > 0) saveData();
+                    renderLabsTab();
+
+                    let msg = `Imported ${added} new lab${added !== 1 ? 's' : ''}`;
+                    if (skipped > 0) msg += `, skipped ${skipped} already in tracker`;
+                    if (invalid > 0) msg += `, ignored ${invalid} entr${invalid !== 1 ? 'ies' : 'y'} with no date`;
+                    msg += '.';
+                    if (status) status.textContent = msg;
+                    alert(msg
+                        + (addedDates.length ? '\n\nAdded: ' + addedDates.slice().sort().join(', ') : '')
+                        + (skippedDates.length ? '\nSkipped (already present): ' + skippedDates.slice().sort().join(', ') : ''));
+                } catch (err) {
+                    if (status) status.textContent = 'Error importing labs: ' + err.message;
+                    alert('Could not import labs: ' + err.message);
+                    console.error('Lab import error:', err);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // allow re-selecting the same file
         }
 
         function parsePastedLabText() {
