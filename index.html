@@ -3030,6 +3030,8 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-signin.js"></script>
 
     <!-- Sync status indicator -->
     <div id="sync-status" style="
@@ -3293,7 +3295,7 @@
             setupDateChangeWatcher();
 
             // Pull latest data from Firebase (will update UI if remote is newer)
-            syncFromFirebase();
+            (window.FBSignIn ? FBSignIn.complete() : Promise.resolve()).then(syncFromFirebase);
         }
 
         // ============ DATE CHANGE DETECTION ============
@@ -7195,6 +7197,7 @@
             firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
             docRef = db.collection('wellness').doc('data');
+            if (window.FBSignIn) FBSignIn.init(); // sign-in bar appears only if Firestore answers permission-denied
         }
 
         // ============ FCM PUSH NOTIFICATIONS ============
@@ -7276,6 +7279,7 @@
                     setSyncStatus('synced');
                 } catch (err) {
                     console.error('Firebase sync failed:', err);
+                    if (window.FBSignIn) FBSignIn.onError(err);
                     setSyncStatus('error');
                 }
             }, 1500);
@@ -7322,6 +7326,7 @@
                 setSyncStatus('synced');
             } catch (err) {
                 console.error('Firebase load failed:', err);
+                if (window.FBSignIn) FBSignIn.onError(err);
                 setSyncStatus('offline');
             }
         }
