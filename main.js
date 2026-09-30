@@ -344,10 +344,12 @@ if (isPackaged) {
         path: app.getPath('exe')
     });
 } else {
-    // Development: need to pass the app path as an argument to electron.exe
-    app.setLoginItemSettings({
-        openAtLogin: true,
-        path: process.execPath,
-        args: [path.resolve(__dirname)]
-    });
+    // Development (running from a checkout via `npx electron .`): do NOT self-register.
+    // Every dev copy wrote the SAME registry value ("electron.app.Electron"), so whichever
+    // copy launched last hijacked startup — on 2026-09-30 that left a stale, unsynced
+    // checkout opening at login instead of the maintained one. Open-at-login for a checkout
+    // is handled by the Startup-folder shortcut that update-shortcut.ps1 creates, which
+    // always points at the folder it was run from. Clearing the setting here also removes
+    // any leftover self-registered entry the next time the app runs.
+    app.setLoginItemSettings({ openAtLogin: false });
 }
