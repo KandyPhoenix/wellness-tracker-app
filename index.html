@@ -6178,9 +6178,6 @@
             }
 
             // Insert marker dates into the labels+data arrays so they appear on the x-axis
-            let b12StartIdx = -1;
-            let ironStartIdx = -1;
-
             function insertMarkerDate(dateStr, markerLabel) {
                 if (!dateStr || filtered.length === 0) return -1;
                 const t = parseDate(dateStr).getTime();
@@ -6195,13 +6192,20 @@
                 labels.splice(insertAt, 0, markerLabel);
                 data.splice(insertAt, 0, null);
                 dateKeys.splice(insertAt, 0, dateStr);
-                if (b12StartIdx >= insertAt) b12StartIdx++;
-                if (ironStartIdx >= insertAt) ironStartIdx++;
                 return insertAt;
             }
 
-            if (selected === 'b12') b12StartIdx = insertMarkerDate(appData.b12StartDate, 'B12 Start');
-            if (selected === 'iron') ironStartIdx = insertMarkerDate(appData.ironStartDate, 'Iron Start');
+            // Vertical marker lines: B12/Iron start dates, plus every Medication Timeline start/stop
+            const labMarkers = [];
+            if (selected === 'b12' && appData.b12StartDate) labMarkers.push({ date: appData.b12StartDate, label: 'B12 Start', color: '#e67e22', dash: [5, 5] });
+            if (selected === 'iron' && appData.ironStartDate) labMarkers.push({ date: appData.ironStartDate, label: 'Iron Start', color: '#c0392b', dash: [5, 5] });
+            (appData.medicationTimeline || []).forEach(med => {
+                if (!med || !med.name) return;
+                if (med.startDate) labMarkers.push({ date: med.startDate, label: med.name + ' Start', color: med.color || '#667eea', dash: [6, 4] });
+                if (med.stopDate)  labMarkers.push({ date: med.stopDate,  label: med.name + ' Stop',  color: med.color || '#667eea', dash: [2, 3] });
+            });
+            labMarkers.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+            labMarkers.forEach(m => insertMarkerDate(m.date, m.label));
 
             if (labChart) {
                 labChart.destroy();
@@ -6252,36 +6256,35 @@
                 }
             };
 
-            // Plugin to draw vertical marker lines (B12 Start, Iron Start)
+            // Plugin to draw vertical marker lines (B12/Iron start + Medication Timeline start/stop)
+            // Labels stack in rows above the chart so overlapping markers stay readable.
             const markerLinesPlugin = {
                 id: 'labMarkerLines',
                 afterDraw: (chart) => {
-                    const markers = [
-                        { idx: b12StartIdx, label: 'B12 Start', color: '#e67e22' },
-                        { idx: ironStartIdx,label: 'Iron Start', color: '#c0392b' }
-                    ];
-                    markers.forEach(m => {
-                        if (m.idx === -1) return;
-                        const ctx = chart.ctx;
-                        const xAxis = chart.scales.x;
-                        const yAxis = chart.scales.y;
-                        const x = xAxis.getPixelForValue(m.idx);
+                    const ctx = chart.ctx;
+                    const xAxis = chart.scales.x;
+                    const yAxis = chart.scales.y;
+                    labMarkers.forEach((m, row) => {
+                        const idx = dateKeys.indexOf(m.date);
+                        if (idx === -1) return;
+                        const x = xAxis.getPixelForValue(idx);
                         ctx.save();
                         ctx.beginPath();
                         ctx.moveTo(x, yAxis.top);
                         ctx.lineTo(x, yAxis.bottom);
-                        ctx.lineWidth = 3;
+                        ctx.lineWidth = 2.5;
                         ctx.strokeStyle = m.color;
-                        ctx.setLineDash([5, 5]);
+                        ctx.setLineDash(m.dash);
                         ctx.stroke();
                         ctx.fillStyle = m.color;
-                        ctx.font = 'bold 12px Arial';
+                        ctx.font = 'bold 10px Arial';
                         ctx.textAlign = 'center';
-                        ctx.fillText(m.label, x, yAxis.top - 8);
+                        ctx.fillText(m.label, x, yAxis.top - 6 - (row * 12));
                         ctx.restore();
                     });
                 }
             };
+            const labChartTopPadding = Math.max(30, labMarkers.length * 12 + 14);
 
             // Show message if no data for selected type
             if (filtered.length === 0) {
@@ -6334,7 +6337,7 @@
                     maintainAspectRatio: false,
                     layout: {
                         padding: {
-                            top: 30
+                            top: labChartTopPadding
                         }
                     },
                     scales: {
@@ -6349,7 +6352,8 @@
                     plugins: {
                         legend: {
                             display: true,
-                            position: 'top'
+                            // Bottom when marker labels need the space above the chart
+                            position: labMarkers.length ? 'bottom' : 'top'
                         }
                     }
                 },
