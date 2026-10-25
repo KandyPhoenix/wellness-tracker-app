@@ -26,7 +26,7 @@ messaging.onBackgroundMessage((payload) => {
     return self.registration.showNotification(title, options);
 });
 
-const CACHE_NAME = 'wellness-tracker-v14';
+const CACHE_NAME = 'wellness-tracker-v15';
 const ASSETS = [
     './',
     './index.html',
