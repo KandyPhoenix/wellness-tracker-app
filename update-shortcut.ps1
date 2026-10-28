@@ -1,8 +1,11 @@
 # Creates / repairs the Wellness Tracker shortcuts so they launch the CURRENT source in this
 # folder via "Run Wellness Tracker.vbs" (no hard-coded path, no stale packaged .exe).
 #   - Desktop shortcut
-#   - Startup shortcut (opens the app at every sign-in)
 #   - Start Menu entry (pin THIS one to the taskbar)
+# Deliberately does NOT create a Startup shortcut: Kandy does not want the app opening at
+# sign-in (2026-10-28). The meal reminders are Task Scheduler jobs and do not need the app
+# running, so there is no reason to autostart it. If you ever want it back, add
+# [Environment]::GetFolderPath('Startup') to $places below.
 # Run from PowerShell:  powershell -ExecutionPolicy Bypass -File .\update-shortcut.ps1
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $target = Join-Path $here 'Run Wellness Tracker.vbs'
@@ -12,7 +15,6 @@ if (-not (Test-Path $target)) { Write-Error "Launcher not found: $target"; exit 
 $shell = New-Object -ComObject WScript.Shell
 $places = @(
   (Join-Path ([Environment]::GetFolderPath('Desktop'))   'Wellness Tracker.lnk'),
-  (Join-Path ([Environment]::GetFolderPath('Startup'))   'Wellness Tracker.lnk'),
   (Join-Path ([Environment]::GetFolderPath('Programs'))  'Wellness Tracker.lnk')
 )
 foreach ($lnkPath in $places) {
