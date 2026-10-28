@@ -6,3 +6,12 @@ Thumbs.db
 wellness-tracker-auto-backup.json
 .firebase/
 firebase-debug.log
+
+# OneDrive conflict artifacts. This checkout lives in OneDrive, which drops
+# "<name> - Copy.<ext>" duplicates next to the originals. Thirteen of them (all
+# from March 2026) sat here until 2026-10-28 -- one was a stale main.js still
+# carrying openAtLogin:true, exactly the kind of file someone copies back over
+# the real one by mistake. Archived to Scriptsrchive\ and deleted.
+* - Copy.*
+*- Copy.*
+*.local
